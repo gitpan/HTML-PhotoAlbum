@@ -1,5 +1,5 @@
 NAME
-    HTML::PhotoAlbum - Easily create web based photo albums
+    HTML::PhotoAlbum - Create web photo albums and slideshows
 
 SYNOPSIS
         use HTML::PhotoAlbum;
@@ -38,8 +38,8 @@ SYNOPSIS
             print $album->render(header => 1);
         }
 
-REQUIRES
-    This module requires CGI::FormBuilder v2.0 or later.
+REQUIREMENTS
+    This module requires CGI::FormBuilder 3.0 or later.
 
 DESCRIPTION
     Admittedly a somewhat special-purpose module, this is designed to
@@ -107,7 +107,6 @@ DESCRIPTION
 
 FUNCTIONS
   new(opt => val, opt => val)
-
     Create a new "HTML::PhotoAlbum" object. Typically, the only option you
     need to specify is the "albums" option, which tells this module which
     albums you're going to allow indexing:
@@ -150,7 +149,6 @@ FUNCTIONS
         URL. It is recommended that you don't mess with this.
 
   render(opt => val, opt => val)
-
     The "render()" method is responsible for formatting the HTML for the
     actual pages. It returns a string, which can then be printed out like
     so:
@@ -197,8 +195,8 @@ FUNCTIONS
         The text for the "previous page" link. Defaults to "Prev".
 
     In addition, you can specify tags for any HTML element in one of two
-    ways. This is stolen directly from the HTML::QuickTable manpage. First,
-    you can specify them as "tag_attr", for example:
+    ways. This is stolen directly from HTML::QuickTable. First, you can
+    specify them as "tag_attr", for example:
 
         body_alink => 'silver'      # <body alink="silver">
 
@@ -222,7 +220,6 @@ FUNCTIONS
     look as nice as possible.
 
   selected
-
     This returns the name of the selected album, allowing you to
     conditionally change its layout:
 
@@ -267,25 +264,21 @@ EXAMPLE
     enough.
 
 NOTES
-    Some have asked "Why not just build a list of the albums from the
-    contents of the albums directory, instead of using the 'albums' option?"
-    Simple: Security. Try using the "albums.txt" file.
-
     On an error condition, a 404 Not Found page will be printed in the
     browser. If the error is suspected to be the programmer's fault, a
     message will be printed to the error_log. Some errors are not logged
     because they can be triggered by users trying to screw around
     (specifying a large page number or image number, for example).
 
-    If you're using "mod_perl", you may want to check out the
-    Apache::PhotoIndex manpage as another alternative.
+    There are a number of other photo albums on CPAN that are worth looking
+    at, and the PHP "Gallery" alternative is nice too (albeit SLOW).
 
 VERSION
-    $Id: PhotoAlbum.pm,v 1.17 2002/01/08 01:44:05 nwiger Exp $
+    $Id: PhotoAlbum.pm,v 1.20 2005/07/13 20:48:42 nwiger Exp $
 
 AUTHOR
-    Copyright (c) 2000-2002, Nathan Wiger, Nateware Inc.
-    <nate@nateware.com>. All Rights Reserved.
+    Copyright (c) 2000-2005, Nathan Wiger, <nate@wiger.org>. All Rights
+    Reserved.
 
     This module is free software; you may copy this under the terms of the
     GNU General Public License, or the Artistic License, copies of which

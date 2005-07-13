@@ -1,15 +1,28 @@
 
 RCS file: /home/nwiger/perlmod/lib/HTML/RCS/PhotoAlbum.pm,v
 Working file: /home/nwiger/perlmod/lib/HTML/PhotoAlbum.pm
-head: 1.17
+head: 1.20
 branch:
 locks: strict
 access list:
 symbolic names:
 keyword substitution: kv
-total revisions: 17;	selected revisions: 17
+total revisions: 20;	selected revisions: 20
 description:
 HTML::ImageAlbum - Easily create web image albums dynamically
+----------------------------
+revision 1.20
+date: 2005/07/13 20:48:42;  author: nwiger;  state: Exp;  lines: +92 -140
+many improvements for mod_perl compat
+----------------------------
+revision 1.19
+date: 2005/02/02 23:00:54;  author: nwiger;  state: Exp;  lines: +51 -50
+fixed mod_perl bugs with $cgi not being reset properly
+----------------------------
+revision 1.18
+date: 2002/01/11 23:25:32;  author: nwiger;  state: Exp;  lines: +107 -53
+- completely redid the mini/full management
+- more docs on examples, link to my albums
 ----------------------------
 revision 1.17
 date: 2002/01/08 01:44:05;  author: nwiger;  state: Exp;  lines: +5 -5

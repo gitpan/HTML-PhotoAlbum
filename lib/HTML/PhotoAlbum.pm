@@ -6,7 +6,7 @@ package HTML::PhotoAlbum;
 
 =head1 NAME
 
-HTML::PhotoAlbum - Easily create web based photo albums
+HTML::PhotoAlbum - Create web photo albums and slideshows
 
 =head1 SYNOPSIS
 
@@ -46,9 +46,9 @@ HTML::PhotoAlbum - Easily create web based photo albums
         print $album->render(header => 1);
     }
 
-=head1 REQUIRES
+=head1 REQUIREMENTS
 
-This module requires B<CGI::FormBuilder v2.0> or later.
+This module requires B<CGI::FormBuilder 3.0> or later.
 
 =head1 DESCRIPTION
 
@@ -121,13 +121,11 @@ use 5.004;
 use Carp;
 use strict;
 use vars qw($VERSION);
-$VERSION = do { my @r=(q$Revision: 1.17 $=~/\d+/g); sprintf "%d."."%02d"x$#r,@r };
+$VERSION = do { my @r=(q$Revision: 1.20 $=~/\d+/g); sprintf "%d."."%02d"x$#r,@r };
 
 # Must twiddle CGI a lot so must include this
 use CGI;
 use CGI::FormBuilder;
-my $cgi = new CGI;
-my $script = $ENV{SCRIPT_NAME} || $0;
 
 # The global %CONFIG hash contains pairs of key/value thingies
 # that serve as defaults if stuff is not specified.
@@ -205,7 +203,8 @@ sub _round (@) {
     return $int;
 }
 
-sub _404_error (;$$) {
+sub error_404 {
+    my $self = shift;
     my $mesg = shift || "The requested album or image was not found.";
     my $real = shift;
     my $mail = $ENV{SERVER_ADMIN} =~ /\@/
@@ -220,7 +219,7 @@ Content-type: text/html
 <h3>404 Not Found</h3>
 $mesg
 <p>
-<a href="$script">Click here</a> to start over, or hit "Back" on your browser.
+<a href="$self->{script}">Click here</a> to start over, or hit "Back" on your browser.
 <p>
 Please contact $mail for more details.
 </font></body></html>
@@ -229,16 +228,22 @@ EOH
     exit 0;
 }
 
-sub _file_hash ($) {
+sub file2hash ($) {
+	my $self = shift;
     my $file = shift;
     my %data = ();
-    open FILE, "<$file" or _404_error("Sorry, cannot access photo albums.", "Can't read $file: $!");
+    open FILE, "<$file"
+        or $self->error_404("Sorry, cannot access photo albums.", "Can't read $file: $!");
     while (<FILE>) {
+		warn "<FILE> $file= $_";
         next if /^\s*#/ || /^\s*$/;
         chomp;
         my($k,$v) = split /\s+/, $_, 2;
         #$c =~ s!$image_pat!!;       # lose any file suffix - slow
+        # fix encoding of path
+        
         carp "[HTML::PhotoAlbum] Warning: duplicate value for '$k' found in $file" if $data{$k};
+        warn "\$data{$k} = $v;";
         $data{$k} = $v;
     }
     close FILE;
@@ -305,27 +310,33 @@ sub new {
     $self->{data} = [];                    # holds all the images/etc
     push @{$self->{data}}, [];             # blank first element so data @ 1
 
+    $self->{cgi} = new CGI;
+    $self->{script} = $self->{cgi}->script_name;
+
     # Check for whether our 'albums' option is a hashref or not; if not,
     # assume it's a filename and read it in verbatim
     unless (ref $self->{opt}{albums} eq 'HASH') {
-        $self->{opt}{albums} = _file_hash $self->{opt}{albums};
+        $self->{opt}{albums} = $self->file2hash($self->{opt}{albums});
     }
 
     # Populate our data if we have an album
-    if (my $album = $cgi->param('album')) {
+    if (my $album = $self->{cgi}->param('album')) {
+
+		use Data::Dumper;
+		warn Dumper($self->{opt}{albums}{$album});
 
         # If not allowed, show forbidden
-        _404_error("Sorry, that is not a valid photo album.",
+        $self->error_404("Sorry, that is not a valid photo album.",
                    "Album $album not specified in albums option to new()")
             unless $self->{opt}{albums}{$album};
 
         # Always need the album dir
-        my $albumdir = "$self->{opt}{dir}/$album";
+        my $albumdir = $self->{cgi}->unescape("$self->{opt}{dir}/$album");
 
         # Now, try to get to directory and populate all our data
         # We must populate data before our navbar or else we won't
         # be able to know what we should be generating...
-        opendir ALBUM, $albumdir or _404_error("Sorry, that is not a valid photo album.",
+        opendir ALBUM, $albumdir or $self->error_404("Sorry, that is not a valid photo album.",
                                                "Cannot read directory $albumdir: $!");
 
         # We want to just get our images out
@@ -335,7 +346,7 @@ sub new {
         # Real quick - any captions.txt file?
         my %captions = ();
         if (-s "$albumdir/$self->{opt}{captions}") {
-            %captions = _file_hash "$albumdir/$self->{opt}{captions}";
+            %captions = $self->file2hash("$albumdir/$self->{opt}{captions}");
         }
 
         for my $image (sort grep /(?:$image_pat)$/, readdir ALBUM) {
@@ -468,7 +479,7 @@ sub render {
     local $^W = 0;
 
     # We print out a navigational form up top of each page
-    my $navform = CGI::FormBuilder->new(fields => [qw/album/], params => $cgi);
+    my $navform = CGI::FormBuilder->new(fields => [qw/album/], params => $self->{cgi});
 
     # What will be printed out
     my @print = ();
@@ -538,14 +549,14 @@ EOF
         # Always need the album dir
         my $albumdir = "$self->{opt}{dir}/$album";
 
-        if ($cgi->param('image') || $cgi->param('slideshow')) {
-            my $img = $cgi->param('image') || ($opt{eachpage} * ($cgi->param('page') - 1) + 1);
+        if ($self->{cgi}->param('image') || $self->{cgi}->param('slideshow')) {
+            my $img = $self->{cgi}->param('image') || ($opt{eachpage} * ($self->{cgi}->param('page') - 1) + 1);
 
             # Print a single image out
             my $data = $self->{data}[$img];
 
             # If the image doesn't exist, show 404
-            _404_error("Sorry, image $img was not found in the $name photo album.")
+            $self->error_404("Sorry, image $img was not found in the $name photo album.")
                 unless ref $data;
 
             # Boundary checks for min/max image
@@ -558,33 +569,33 @@ EOF
             if ($nextimg > $numimgs) {
                 if ($opt{navwrap}) {
                     $nextimg = 1;
-                    $nextlink = qq(<a href="$script?album=$album&image=1">$opt{nexttext}</a>);
+                    $nextlink = qq(<a href="$self->{script}?album=$album&image=1">$opt{nexttext}</a>);
                 } else {
                     $nextimg = undef;
                     $prevlink = qq($opt{nexttext});
                 }
             } else {
-                $nextlink = qq(<a href="$script?album=$album&image=$nextimg">$opt{nexttext}</a>);
+                $nextlink = qq(<a href="$self->{script}?album=$album&image=$nextimg">$opt{nexttext}</a>);
             }
 
             # Setup links just like for pages
             if ($previmg < 1){
                 if ($opt{navwrap}) {
                     $previmg = $numimgs;
-                    $prevlink = qq(<a href="$script?album=$album&image=$numimgs">$opt{prevtext}</a>);
+                    $prevlink = qq(<a href="$self->{script}?album=$album&image=$numimgs">$opt{prevtext}</a>);
                 } else {
                     $previmg = undef;
                     $prevlink = qq($opt{prevtext});
                 }
             } else {
-                $prevlink = qq(<a href="$script?album=$album&image=$previmg">$opt{prevtext}</a>);
+                $prevlink = qq(<a href="$self->{script}?album=$album&image=$previmg">$opt{prevtext}</a>);
             }
 
             # Print out slideshow stuff
-            if ($cgi->param('slideshow') && $nextimg && $cgi->param('submit') ne 'Stop') {
-                my $sec = $cgi->param('slideshow');
+            if ($self->{cgi}->param('slideshow') && $nextimg && $self->{cgi}->param('submit') ne 'Stop') {
+                my $sec = $self->{cgi}->param('slideshow');
                 push @print, qq(<meta http-equiv="refresh" content="$sec; )
-                           . qq(url=$script?album=$album&image=$nextimg&slideshow=$sec">);
+                           . qq(url=$self->{script}?album=$album&image=$nextimg&slideshow=$sec">);
             }
 
             # Figure out what page we'd be one
@@ -594,7 +605,7 @@ EOF
             my $caption = $data->[2] ? "<p>$data->[2]" : '';
             push @print, <<EOF;
 <h3>$name - Image $img of $numimgs</h3>
-<b>$prevlink | <a href="$script?album=$album&page=$page">Back to Page $page</a> | $nextlink </b><p>
+<b>$prevlink | <a href="$self->{script}?album=$album&page=$page">Back to Page $page</a> | $nextlink </b><p>
 <a href="$albumdir/$data->[1]"><img src="$albumdir/$data->[1]"></a>$caption
 EOF
 
@@ -605,12 +616,12 @@ EOF
 
             # Setup a couple vars and a title
             my $page = 0;
-            unless ($page = $cgi->param('page')) {
+            unless ($page = $self->{cgi}->param('page')) {
                 if (-f "$albumdir/$opt{intro}") {
                     if (open INTRO, "<$albumdir/$opt{intro}") {
                         push @print, '</div>', <INTRO>;
                         push @print, _tag('div', $opt{div}),
-                            qq(<p><a href="$script?album=$album&page=1"><b>See the Pictures</b></a></div>\n);
+                            qq(<p><a href="$self->{script}?album=$album&page=1"><b>See the Pictures</b></a></div>\n);
                         push @print, $close;
                         close INTRO;
                         return wantarray ? @print : join '', @print;
@@ -621,7 +632,7 @@ EOF
                 $page = 1;
             }
 
-            _404_error("Sorry, we could not find page $page of the $name photo album.")
+            $self->error_404("Sorry, we could not find page $page of the $name photo album.")
                 unless $page >= 0 && $page <= $numpages;
             push @print, "\n<h3>$name - Page $page of $numpages</h3>\n";
 
@@ -636,9 +647,9 @@ EOF
                 # Sanity check: See if the previous page is less than 1,
                 my($prevlink, $nextlink);
                 if ($page - 1 > 0) {
-                    $prevlink = qq(<a href="$script?album=$album&page=$prevpage">$opt{prevtext}</a>);
+                    $prevlink = qq(<a href="$self->{script}?album=$album&page=$prevpage">$opt{prevtext}</a>);
                 } elsif ($opt{navwrap}) {
-                    $prevlink = qq(<a href="$script?album=$album&page=$numpages">$opt{prevtext}</a>);
+                    $prevlink = qq(<a href="$self->{script}?album=$album&page=$numpages">$opt{prevtext}</a>);
                 } else {
                     $prevlink = qq($opt{prevtext});
                 }
@@ -646,12 +657,12 @@ EOF
                 # And if the next page is bigger than how many we have
                 if ($page == $numpages) {
                     if ($opt{navwrap}) {
-                        $nextlink = qq(<a href="$script?album=$album&page=1">$opt{nexttext}</a>); 
+                        $nextlink = qq(<a href="$self->{script}?album=$album&page=1">$opt{nexttext}</a>); 
                     } else {
                         $nextlink = qq($opt{nexttext});
                     }
                 } else {
-                    $nextlink = qq(<a href="$script?album=$album&page=$nextpage">$opt{nexttext}</a>); 
+                    $nextlink = qq(<a href="$self->{script}?album=$album&page=$nextpage">$opt{nexttext}</a>); 
                 }
 
                 # Finally, push together a list of page numbers
@@ -661,7 +672,7 @@ EOF
                     if ($i == $page) {
                         $pagelinks .= qq( | $i);
                     } else {
-                        $pagelinks .= qq( | <a href="$script?album=$album&page=$i">$i</a>);
+                        $pagelinks .= qq( | <a href="$self->{script}?album=$album&page=$i">$i</a>);
                     }
                 }
 
@@ -698,7 +709,7 @@ EOF
 
                     # We change from an HTML nav page to a direct img link based on navfull
                     my $imglink = $opt{navfull}
-                                    ? qq(<a href="$script?album=$album&image=$n">)
+                                    ? qq(<a href="$self->{script}?album=$album&image=$n">)
                                     : qq(<a href="$albumdir/$data->[1]">);
 
                     # Create the link
@@ -740,7 +751,8 @@ If no album is selected, this will return undef.
 =cut
 
 sub selected {
-    return $cgi->param('album');
+    my $self = shift;
+    return $self->{cgi}->param('album');
 }
 
 =head1 EXAMPLE
@@ -784,27 +796,22 @@ Easy enough.
 
 =head1 NOTES
 
-Some have asked "Why not just build a list of the albums from the contents
-of the albums directory, instead of using the 'albums' option?" Simple:
-Security. Try using the C<albums.txt> file.
-
 On an error condition, a 404 Not Found page will be printed in the browser.
 If the error is suspected to be the programmer's fault, a message will be
 printed to the error_log. Some errors are not logged because they can be
 triggered by users trying to screw around (specifying a large page number
 or image number, for example).
 
-If you're using C<mod_perl>, you may want to check out L<Apache::PhotoIndex>
-as another alternative.
+There are a number of other photo albums on CPAN that are worth looking
+at, and the PHP "Gallery" alternative is nice too (albeit SLOW).
 
 =head1 VERSION
 
-$Id: PhotoAlbum.pm,v 1.17 2002/01/08 01:44:05 nwiger Exp $
+$Id: PhotoAlbum.pm,v 1.20 2005/07/13 20:48:42 nwiger Exp $
 
 =head1 AUTHOR
 
-Copyright (c) 2000-2002, Nathan Wiger, Nateware Inc. <nate@nateware.com>.
-All Rights Reserved.
+Copyright (c) 2000-2005, Nathan Wiger, <nate@wiger.org>. All Rights Reserved.
 
 This module is free software; you may copy this under the terms of the
 GNU General Public License, or the Artistic License, copies of which

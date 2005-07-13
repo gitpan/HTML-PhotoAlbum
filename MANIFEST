@@ -1,6 +1,6 @@
-PhotoAlbum.pm
+lib/HTML/PhotoAlbum.pm
 Makefile.PL
 README
-test.pl
+t/HTML-PhotoAlbum.t
 Changes
 MANIFEST
